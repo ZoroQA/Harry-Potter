@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 const HP_ENDPOINT = 'https://hp-api.onrender.com/api/characters'
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const res = await fetch(HP_ENDPOINT, { cache: 'force-cache', next: { revalidate: 60 } })
+  const res = await fetch(HP_ENDPOINT, { next: { revalidate: 60 } })
   if (!res.ok) return NextResponse.json({ error: 'not found' }, { status: 404 })
   const all = await res.json()
   const idx = Number(params.id)
