@@ -9,12 +9,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   let found = all.find((r: any) => String(r.id) === params.id)
   if (!found && !Number.isNaN(idx)) found = all[idx]
-  if (!found) found = all.find((r: any) => (r.name + '-' + idx) === params.id)
+  if (!found) found = all.find((r: any, i: number) => (r.name + '-' + i) === params.id)
   if (!found) return NextResponse.json({ error: 'not found' }, { status: 404 })
 
   return NextResponse.json({
     id: String(found.id ?? params.id),
-    name: found.name, image: found.image, house: found.house, patronus: found.patronus,
-    dateOfBirth: found.dateOfBirth, actor: found.actor, wand: found.wand
+    name: found.name,
+    image: found.image,
+    house: found.house,
+    patronus: found.patronus,
+    dateOfBirth: found.dateOfBirth,
+    actor: found.actor,
+    wand: found.wand
   })
 }

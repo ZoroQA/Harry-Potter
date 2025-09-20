@@ -1,42 +1,74 @@
-import Image from 'next/image'
-import Link from 'next/link'
-import { headers } from 'next/headers'
+'use client'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { CharacterCard } from '../../../components/character-card'
+import { Search } from 'lucide-react'
+import { useFavorites } from '../../../components/favorites'
 
-async function fetchCharacter(id: string) {
-  // Абсолютный URL, чтобы работало и локально и на Vercel
-  const h = headers()
-  const host = h.get('host')
-  const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
-  const base = `${protocol}://${host}`
-  const res = await fetch(`${base}/api/character/${id}`, { cache: 'no-store' })
-  if (!res.ok) throw new Error('failed')
-  return res.json()
+export type Character = {
+  id: string; name: string; image: string; house?: string; patronus?: string;
 }
 
-export default async function CharacterPage({ params }: { params: { id: string }}) {
-  const ch = await fetchCharacter(params.id)
+export default function CharactersPage() {
+  const [q, setQ] = useState('')
+  const [page, setPage] = useState(1)
+  const [items, setItems] = useState<Character[]>([])
+  const [loading, setLoading] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const loaderRef = useRef<HTMLDivElement | null>(null)
+  const { favorites } = useFavorites()
+
+  const params = useMemo(() =>
+    new URLSearchParams({ q, page: String(page), limit: '24' }).toString(),
+  [q, page])
+
+  useEffect(() => { setItems([]); setPage(1); setHasMore(true) }, [q])
+
+  useEffect(() => {
+    let cancel = false
+    const run = async () => {
+      if (!hasMore || loading) return
+      setLoading(true)
+      const res = await fetch(`/api/characters?${params}`)
+      if (!res.ok) { setLoading(false); return }
+      const data = await res.json()
+      if (cancel) return
+      setItems(prev => [...prev, ...data.items])
+      setHasMore(data.hasMore)
+      setLoading(false)
+    }
+    run()
+    return () => { cancel = true }
+  }, [params])
+
+  useEffect(() => {
+    if (!loaderRef.current) return
+    const io = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore && !loading) setPage(p => p + 1)
+    }, { rootMargin: '200px' })
+    io.observe(loaderRef.current)
+    return () => io.disconnect()
+  }, [loaderRef.current, hasMore, loading])
+
   return (
-    <article className="grid md:grid-cols-2 gap-8">
-      <div className="relative aspect-[3/4] overflow-hidden rounded-2xl ring-1 ring-white/10">
-        {ch.image ? (
-          <Image src={ch.image} alt={ch.name} fill className="object-cover" />
-        ) : (
-          <div className="w-full h-full grid place-items-center text-slate-400">Нет изображения</div>
-        )}
+    <section className="grid gap-6">
+      <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+        <Search className="size-4" />
+        <input
+          value={q} onChange={e => setQ(e.target.value)} placeholder="Поиск по имени…"
+          className="bg-transparent outline-none w-full placeholder:text-slate-400"
+        />
       </div>
-      <div>
-        <h1 className="text-3xl font-bold">{ch.name}</h1>
-        <p className="text-slate-300/90 mt-2">Дом: {ch.house || '—'}</p>
-        <p className="text-slate-300/90">Патронус: {ch.patronus || '—'}</p>
-        <p className="text-slate-300/90">Дата рождения: {ch.dateOfBirth || '—'}</p>
-        <p className="text-slate-300/90">Актёр: {ch.actor || '—'}</p>
-        <p className="text-slate-300/90">
-          Палочка: {ch.wand?.wood || '—'}{ch.wand?.core ? ` / ${ch.wand.core}` : ''}
-        </p>
-        <Link href="/characters" className="inline-block mt-6 px-4 py-2 bg-white text-black rounded-lg">
-          ← К каталогу
-        </Link>
+
+      <div className="text-sm text-slate-400">
+        Избранных: <b>{favorites.size}</b>
       </div>
-    </article>
+
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4">
+        {items.map(ch => (<CharacterCard key={ch.id} character={ch} />))}
+      </div>
+
+      {loading && <div className="text-center text-slate-400">Загрузка…</div>}
+      <div ref={loaderRef} />
+    </section>
   )
 }
